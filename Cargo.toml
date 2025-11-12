@@ -1,0 +1,26 @@
+[package]
+name = "os_project_demo"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+eframe = "0.33.0"
+egui = "0.33.0"
+tokio = { version = "1.48.0", features = ["full"] }
+egui_extras = {version = "*", features = ["all_loaders","image","file"]}
+image = { version = "0.25", features = ["jpeg", "png","gif"] } 
+rfd = "0.15.4"
+memory-stats = "1.2.0"
+pollster = "0.4.0"
+rand = "0.9.2"
+
+
+# Enable a small amount of optimization in the dev profile.
+[profile.dev]
+opt-level = 1
+
+# Enable a large amount of optimization in the dev profile for dependencies.
+[profile.dev.package."*"]
+opt-level = 3
+
+
