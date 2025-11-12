@@ -1,12 +1,13 @@
-use crate::impls::PROGRESS_MAX;
-use egui::ProgressBar;
-use memory_stats::memory_stats;
+use crate::impls::{
+    IMAGE_PATH,
+    thread_model::{ThreadModel, ThreadModelKind},
+};
 use std::{
     env::current_dir,
     path::{Path, PathBuf},
     sync::{
         Arc,
-        atomic::{AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
         mpsc::{Receiver, SyncSender, sync_channel},
     },
     thread::{JoinHandle, sleep, spawn},
@@ -14,6 +15,7 @@ use std::{
 };
 
 use egui::{Button, Context, ImageSource};
+use rand::Rng;
 
 use crate::impls::load_image;
 
@@ -84,66 +86,96 @@ pub fn os_foreground(
     (handle, show_tx)
 }
 
-pub fn os_background(counter: Arc<AtomicU64>) -> JoinHandle<()> {
+pub fn os_background(counter: Arc<AtomicU64>, finished: Arc<AtomicBool>) -> JoinHandle<()> {
     std::thread::spawn(move || {
-        loop {
+        while !finished.load(Ordering::Relaxed) {
+            let duration = {
+                let mut rng = rand::rng();
+
+                rng.random_range(0..1000)
+            };
             counter.fetch_add(1, Ordering::Relaxed);
-            sleep(Duration::from_secs(1));
+            sleep(Duration::from_millis(duration))
         }
     })
 }
 
-pub struct OsThreadApp {
-    interactive_threads: Vec<(JoinHandle<()>, SyncSender<egui::Context>)>,
-    background_threads: Vec<JoinHandle<()>>,
-    counter: Arc<AtomicU64>,
+pub struct OneToOneModel {
+    foreground_tasks: Vec<(JoinHandle<()>, SyncSender<egui::Context>)>,
+    background_tasks: Vec<JoinHandle<()>>,
     on_done_tx: SyncSender<()>,
-    on_done_rc: Receiver<()>,
+    on_done_rx: Receiver<()>,
+    finished: Arc<AtomicBool>,
 }
 
-impl OsThreadApp {
+impl OneToOneModel {
     pub fn new() -> Self {
         let (on_done_tx, on_done_rc) = sync_channel(0);
 
         Self {
-            interactive_threads: Vec::new(),
+            foreground_tasks: Vec::new(),
             on_done_tx,
-            on_done_rc,
-            background_threads: Vec::new(),
-            counter: Default::default(),
+            on_done_rx: on_done_rc,
+            background_tasks: Vec::new(),
+            finished: Default::default(),
         }
-    }
-
-    fn create_interactive_task(&mut self, ctx: &Context) {
-        let thread_nr = self.interactive_threads.len();
-        self.interactive_threads.push(os_foreground(
-            thread_nr,
-            self.on_done_tx.clone(),
-            "assets/shocked.gif",
-            ctx,
-        ));
-    }
-    fn create_background_task(&mut self) {
-        self.background_threads
-            .push(os_background(self.counter.clone()));
     }
 }
 
-impl Default for OsThreadApp {
+impl ThreadModel for OneToOneModel {
+    fn get_kind(&self) -> ThreadModelKind {
+        ThreadModelKind::OneToOne
+    }
+
+    fn create_foreground_task(&mut self, ctx: &Context) {
+        let thread_nr = self.foreground_tasks.len();
+        self.foreground_tasks.push(os_foreground(
+            thread_nr,
+            self.on_done_tx.clone(),
+            IMAGE_PATH,
+            ctx,
+        ));
+    }
+
+    fn create_background_task(&mut self, counter: Arc<AtomicU64>) {
+        self.background_tasks
+            .push(os_background(counter.clone(), self.finished.clone()));
+    }
+
+    fn num_background_tasks(&self) -> usize {
+        self.background_tasks.len()
+    }
+
+    fn run_interactive(&mut self, ctx: &Context) {
+        for (_, sender) in self.foreground_tasks.iter_mut() {
+            let _ = sender.send(ctx.clone());
+        }
+    }
+
+    fn join_interactive(&mut self) {
+        for _ in self.foreground_tasks.iter_mut() {
+            let _ = self.on_done_rx.recv();
+        }
+    }
+
+    fn create_evil_task(&mut self) {}
+}
+
+impl Default for OneToOneModel {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl std::ops::Drop for OsThreadApp {
+impl std::ops::Drop for OneToOneModel {
     fn drop(&mut self) {
-        for (handle, show_tx) in self.interactive_threads.drain(..) {
+        self.finished.store(true, Ordering::Relaxed);
+        for (handle, show_tx) in self.foreground_tasks.drain(..) {
             std::mem::drop(show_tx);
+            handle.join().unwrap()
+        }
+        for handle in self.background_tasks.drain(..) {
             handle.join().unwrap();
         }
     }
-}
-
-impl eframe::App for OsThreadApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {}
 }

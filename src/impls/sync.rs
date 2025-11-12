@@ -1,21 +1,36 @@
 use std::{
     env::current_dir,
     path::Path,
-    sync::{Arc, atomic::AtomicU64},
-    thread::JoinHandle,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+    thread::sleep,
+    time::Duration,
 };
 
 use egui::{Button, Context, ImageSource};
+use rand::Rng;
 
-use crate::impls::load_image;
+use crate::impls::{
+    IMAGE_PATH, load_image,
+    thread_model::{ThreadModel, ThreadModelKind},
+};
 
 pub struct SyncBackgroundTask {
-    counter: u64,
+    counter: Arc<AtomicU64>,
 }
 
 impl SyncBackgroundTask {
     pub fn run(&mut self) {
-        self.counter += 1;
+        self.counter.fetch_add(1, Ordering::Relaxed);
+        let duration = {
+            let mut rng = rand::rng();
+
+            rng.random_range(0..1000)
+        };
+
+        sleep(Duration::from_millis(duration));
     }
 }
 
@@ -55,15 +70,44 @@ impl SyncForegroundTask {
     }
 }
 
-pub fn sync_interactive(thread_nr: usize, image_path: &str, ctx: &Context) -> SyncForegroundTask {
-    let image = load_image(Path::new(image_path), ctx);
-    SyncForegroundTask::new(thread_nr, image)
+#[derive(Default)]
+pub struct ManyToOneModel {
+    foreground_tasks: Vec<SyncForegroundTask>,
+    background_tasks: Vec<SyncBackgroundTask>,
 }
 
-pub trait ThreadModel {
-    fn create_foreground_task(&mut self, ctx: &Context);
-    fn create_background_task(&mut self, counter: Arc<AtomicU64>);
-    fn num_background_tasks(&self) -> usize;
-    fn run_interactive(&mut self, ctx: &Context);
-    fn join_interactive(&mut self);
+impl ThreadModel for ManyToOneModel {
+    fn get_kind(&self) -> ThreadModelKind {
+        ThreadModelKind::ManyToOne
+    }
+
+    fn create_foreground_task(&mut self, ctx: &Context) {
+        let image = load_image(Path::new(IMAGE_PATH), ctx);
+        self.foreground_tasks
+            .push(SyncForegroundTask::new(self.foreground_tasks.len(), image));
+    }
+
+    fn create_background_task(&mut self, counter: Arc<AtomicU64>) {
+        self.background_tasks.push(SyncBackgroundTask { counter });
+    }
+
+    fn create_evil_task(&mut self) {}
+
+    fn num_background_tasks(&self) -> usize {
+        self.background_tasks.len()
+    }
+
+    fn run_interactive(&mut self, ctx: &Context) {
+        for task in self.foreground_tasks.iter_mut() {
+            task.show(ctx);
+        }
+    }
+
+    fn join_interactive(&mut self) {
+        //We don't need to join any threads in this model, so use this function to run
+        //background tasks
+        for task in self.background_tasks.iter_mut() {
+            task.run();
+        }
+    }
 }

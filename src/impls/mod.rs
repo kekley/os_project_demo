@@ -6,6 +6,7 @@ pub mod app;
 pub mod async_light_thread;
 pub mod async_os_thread;
 pub mod sync;
+pub mod thread_model;
 
 pub fn load_image(path: &Path, ctx: &Context) -> ImageSource<'static> {
     let uri = format!("bytes://{path}", path = path.to_string_lossy());
@@ -13,5 +14,7 @@ pub fn load_image(path: &Path, ctx: &Context) -> ImageSource<'static> {
     ctx.include_bytes(uri.clone(), file);
     ImageSource::Uri(uri.into())
 }
+
+pub const IMAGE_PATH: &str = "assets/shocked.gif";
 
 pub const PROGRESS_MAX: u64 = 12000;

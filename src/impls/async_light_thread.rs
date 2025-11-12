@@ -1,14 +1,14 @@
-use crate::impls::sync::ThreadModel;
 use std::{
     path::Path,
     sync::{
         Arc,
-        atomic::{AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
     time::Duration,
 };
 
 use egui::{Button, Context, ImageSource};
+use pollster::FutureExt;
 use rand::Rng;
 use rfd::{AsyncFileDialog, FileHandle};
 use tokio::{
@@ -18,7 +18,10 @@ use tokio::{
     time::sleep,
 };
 
-use crate::impls::load_image;
+use crate::impls::{
+    IMAGE_PATH, load_image,
+    thread_model::{ThreadModel, ThreadModelKind},
+};
 
 pub struct ForegroundGreenThread {
     thread_nr: usize,
@@ -91,12 +94,19 @@ async fn inner(
     }
 }
 
-pub fn background_green_thread(counter: Arc<AtomicU64>) -> JoinHandle<()> {
-    spawn(inner_background(counter))
+pub fn background_green_thread(
+    counter: Arc<AtomicU64>,
+    finished: Arc<AtomicBool>,
+) -> JoinHandle<()> {
+    spawn(inner_background(counter, finished))
 }
 
-async fn inner_background(counter: Arc<AtomicU64>) {
-    loop {
+pub fn background_evil_thread(finished: Arc<AtomicBool>) -> JoinHandle<()> {
+    spawn(inner_evil(finished))
+}
+
+async fn inner_background(counter: Arc<AtomicU64>, finished: Arc<AtomicBool>) {
+    while !finished.load(Ordering::Relaxed) {
         let duration = {
             let mut rng = rand::rng();
 
@@ -107,26 +117,59 @@ async fn inner_background(counter: Arc<AtomicU64>) {
     }
 }
 
-pub struct GreenThreadModel {
+async fn inner_evil(finished: Arc<AtomicBool>) {
+    while !finished.load(Ordering::Relaxed) {
+        let duration = {
+            let mut rng = rand::rng();
+
+            rng.random_range(0..1000)
+        };
+        //This actually blocks the thread rather than cooperatively yielding execution
+        //If all the kernel threads block, execution cannot continue
+        std::thread::sleep(Duration::from_millis(duration));
+    }
+}
+pub struct ManyToManyModel {
     foreground_tasks: Vec<(JoinHandle<()>, Sender<Context>)>,
     background_tasks: Vec<JoinHandle<()>>,
     on_done_tx: Sender<()>,
     on_done_rx: Receiver<()>,
+    finished: Arc<AtomicBool>,
 }
 
-impl ThreadModel for GreenThreadModel {
+impl ManyToManyModel {
+    pub fn new() -> Self {
+        let (on_done_tx, on_done_rx) = channel(100000);
+        Self {
+            foreground_tasks: Vec::new(),
+            background_tasks: Vec::new(),
+            on_done_tx,
+            on_done_rx,
+            finished: Default::default(),
+        }
+    }
+}
+
+impl Default for ManyToManyModel {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ThreadModel for ManyToManyModel {
     fn create_foreground_task(&mut self, ctx: &Context) {
         let thread_nr = self.foreground_tasks.len();
         self.foreground_tasks.push(foreground_green_thread(
             thread_nr,
             self.on_done_tx.clone(),
-            "assets/shocked.gif",
+            IMAGE_PATH,
             ctx,
         ));
     }
 
     fn create_background_task(&mut self, counter: Arc<AtomicU64>) {
-        self.background_tasks.push(background_green_thread(counter));
+        self.background_tasks
+            .push(background_green_thread(counter, self.finished.clone()));
     }
 
     fn num_background_tasks(&self) -> usize {
@@ -145,13 +188,25 @@ impl ThreadModel for GreenThreadModel {
         }
     }
 
-    fn new() -> Self {
-        let (on_done_tx, on_done_rx) = channel(100000);
-        Self {
-            foreground_tasks: Vec::new(),
-            background_tasks: Vec::new(),
-            on_done_tx,
-            on_done_rx,
+    fn get_kind(&self) -> ThreadModelKind {
+        ThreadModelKind::ManyToMany
+    }
+
+    fn create_evil_task(&mut self) {
+        self.background_tasks
+            .push(background_evil_thread(self.finished.clone()));
+    }
+}
+
+impl std::ops::Drop for ManyToManyModel {
+    fn drop(&mut self) {
+        self.finished.store(true, Ordering::Relaxed);
+        for (handle, show_tx) in self.foreground_tasks.drain(..) {
+            std::mem::drop(show_tx);
+            handle.block_on().unwrap();
+        }
+        for handle in self.background_tasks.drain(..) {
+            handle.block_on().unwrap();
         }
     }
 }

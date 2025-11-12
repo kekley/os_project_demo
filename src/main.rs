@@ -6,7 +6,7 @@ use eframe::egui;
 use egui_extras::install_image_loaders;
 use tokio::runtime::Runtime;
 
-use crate::impls::{app::App, async_light_thread::GreenThreadModel};
+use crate::impls::app::App;
 
 fn main() -> eframe::Result {
     let runtime = Runtime::new().unwrap();
