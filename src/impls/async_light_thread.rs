@@ -7,7 +7,7 @@ use std::{
     time::Duration,
 };
 
-use egui::{Button, Context, ImageSource};
+use egui::{Button, Context, DragValue, ImageSource};
 use pollster::FutureExt;
 use rand::Rng;
 use rfd::{AsyncFileDialog, FileHandle};
@@ -24,28 +24,26 @@ use crate::impls::{
 };
 
 pub struct ForegroundGreenThread {
-    thread_nr: usize,
-    title: String,
     image: ImageSource<'static>,
     loader_thread: Option<JoinHandle<Option<FileHandle>>>,
+    text_buffer: String,
+    form_name: String,
+    form_number: u32,
 }
 
 impl ForegroundGreenThread {
-    fn new(thread_nr: usize, image: ImageSource<'static>) -> Self {
-        let title = format!("Green thread {thread_nr}");
+    fn new(image: ImageSource<'static>) -> Self {
         Self {
-            thread_nr,
-            title,
             image,
             loader_thread: None,
+            text_buffer: String::new(),
+            form_name: String::new(),
+            form_number: 0,
         }
     }
 
     async fn show(&mut self, ctx: &egui::Context) {
-        let pos = egui::pos2(
-            128.0 * (self.thread_nr / 7) as f32,
-            128.0 * ((self.thread_nr % 7) as f32 + 1.0),
-        );
+        let pos = egui::pos2(128.0, 128.0);
         if let Some(handle) = self.loader_thread.take_if(|handle| handle.is_finished())
             && let Ok(result) = handle.await
             && let Some(path) = result
@@ -53,7 +51,7 @@ impl ForegroundGreenThread {
             self.image = load_image(path.path(), ctx);
         }
 
-        egui::Window::new(&self.title)
+        egui::Window::new("Image Viewer")
             .default_pos(pos)
             .show(ctx, |ui| {
                 ui.image(self.image.clone());
@@ -66,28 +64,45 @@ impl ForegroundGreenThread {
                     self.loader_thread = Some(handle);
                 }
             });
+
+        egui::Window::new("Text Editor")
+            .default_pos(pos * 2.0)
+            .show(ctx, |ui| {
+                ui.text_edit_multiline(&mut self.text_buffer);
+            });
+        egui::Window::new("Form")
+            .default_pos(pos * 3.0)
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Name: ");
+                    ui.text_edit_singleline(&mut self.form_name);
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Age: ");
+                    ui.add(DragValue::new(&mut self.form_number));
+                });
+            });
     }
 }
 
 pub fn foreground_green_thread(
-    thread_nr: usize,
     on_done_tx: Sender<()>,
     image_path: &str,
     ctx: &Context,
 ) -> (JoinHandle<()>, Sender<Context>) {
     let image = load_image(Path::new(image_path), ctx);
     let (show_tx, show_rc) = channel(1);
-    let handle = tokio::spawn(inner(thread_nr, image, show_rc, on_done_tx));
+    let handle = tokio::spawn(inner(image, show_rc, on_done_tx));
     (handle, show_tx)
 }
 
 async fn inner(
-    thread_nr: usize,
     image: ImageSource<'static>,
     mut show_rc: Receiver<Context>,
     on_done_tx: Sender<()>,
 ) {
-    let mut state = ForegroundGreenThread::new(thread_nr, image);
+    let mut state = ForegroundGreenThread::new(image);
     while let Some(ctx) = show_rc.recv().await {
         state.show(&ctx).await;
         let _ = on_done_tx.send(()).await;
@@ -158,9 +173,7 @@ impl Default for ManyToManyModel {
 
 impl ThreadModel for ManyToManyModel {
     fn create_foreground_task(&mut self, ctx: &Context) {
-        let thread_nr = self.foreground_tasks.len();
         self.foreground_tasks.push(foreground_green_thread(
-            thread_nr,
             self.on_done_tx.clone(),
             IMAGE_PATH,
             ctx,

@@ -9,7 +9,7 @@ use std::{
     time::Duration,
 };
 
-use egui::{Button, Context, ImageSource};
+use egui::{Button, Context, DragValue, ImageSource};
 use rand::Rng;
 
 use crate::impls::{
@@ -35,27 +35,25 @@ impl SyncBackgroundTask {
 }
 
 pub struct SyncForegroundTask {
-    task_nr: usize,
-    title: String,
     image: ImageSource<'static>,
+    text_buffer: String,
+    form_name: String,
+    form_number: u32,
 }
 
 impl SyncForegroundTask {
-    pub fn new(task_nr: usize, image: ImageSource<'static>) -> Self {
-        let title = format!("Window {task_nr}");
+    pub fn new(image: ImageSource<'static>) -> Self {
         Self {
-            task_nr,
-            title,
             image,
+            text_buffer: Default::default(),
+            form_name: Default::default(),
+            form_number: Default::default(),
         }
     }
 
     pub fn show(&mut self, ctx: &egui::Context) {
-        let pos = egui::pos2(
-            128.0 * (self.task_nr / 7) as f32,
-            128.0 * ((self.task_nr % 7) as f32 + 1.0),
-        );
-        egui::Window::new(&self.title)
+        let pos = egui::pos2(128.0, 128.0);
+        egui::Window::new("Image viewer")
             .default_pos(pos)
             .show(ctx, |ui| {
                 ui.image(self.image.clone());
@@ -66,6 +64,25 @@ impl SyncForegroundTask {
                         self.image = load_image(&result, ctx);
                     }
                 }
+            });
+
+        egui::Window::new("Text Editor")
+            .default_pos(pos * 2.0)
+            .show(ctx, |ui| {
+                ui.text_edit_multiline(&mut self.text_buffer);
+            });
+        egui::Window::new("Form")
+            .default_pos(pos * 3.0)
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Name: ");
+                    ui.text_edit_singleline(&mut self.form_name);
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Age: ");
+                    ui.add(DragValue::new(&mut self.form_number));
+                });
             });
     }
 }
@@ -83,8 +100,7 @@ impl ThreadModel for ManyToOneModel {
 
     fn create_foreground_task(&mut self, ctx: &Context) {
         let image = load_image(Path::new(IMAGE_PATH), ctx);
-        self.foreground_tasks
-            .push(SyncForegroundTask::new(self.foreground_tasks.len(), image));
+        self.foreground_tasks.push(SyncForegroundTask::new(image));
     }
 
     fn create_background_task(&mut self, counter: Arc<AtomicU64>) {

@@ -14,35 +14,33 @@ use std::{
     time::Duration,
 };
 
-use egui::{Button, Context, ImageSource};
+use egui::{Button, Context, DragValue, ImageSource};
 use rand::Rng;
 
 use crate::impls::load_image;
 
 pub struct OsForegroundTask {
-    thread_nr: usize,
-    title: String,
     image: ImageSource<'static>,
     loader_thread: Option<JoinHandle<Option<PathBuf>>>,
+    text_buffer: String,
+    form_name: String,
+    form_number: u32,
 }
 
 impl OsForegroundTask {
-    fn new(thread_nr: usize, image: ImageSource<'static>) -> Self {
-        let title = format!("OS thread {thread_nr}");
+    fn new(image: ImageSource<'static>) -> Self {
         Self {
-            thread_nr,
-            title,
             image,
             loader_thread: None,
+            text_buffer: Default::default(),
+            form_name: Default::default(),
+            form_number: Default::default(),
         }
     }
 
     fn show(&mut self, ctx: &egui::Context) {
-        let pos = egui::pos2(
-            128.0 * (self.thread_nr / 7) as f32,
-            128.0 * ((self.thread_nr % 7) as f32 + 1.0),
-        );
-        egui::Window::new(&self.title)
+        let pos = egui::pos2(128.0, 128.0);
+        egui::Window::new("Image viewer")
             .default_pos(pos)
             .show(ctx, |ui| {
                 ui.image(self.image.clone());
@@ -62,6 +60,25 @@ impl OsForegroundTask {
                     self.loader_thread = Some(handle);
                 }
             });
+
+        egui::Window::new("Text Editor")
+            .default_pos(pos * 2.0)
+            .show(ctx, |ui| {
+                ui.text_edit_multiline(&mut self.text_buffer);
+            });
+        egui::Window::new("Form")
+            .default_pos(pos * 3.0)
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Name: ");
+                    ui.text_edit_singleline(&mut self.form_name);
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Age: ");
+                    ui.add(DragValue::new(&mut self.form_number));
+                });
+            });
     }
 }
 
@@ -76,7 +93,7 @@ pub fn os_foreground(
     let handle = std::thread::Builder::new()
         .name(format!("Worker {thread_nr}"))
         .spawn(move || {
-            let mut state = OsForegroundTask::new(thread_nr, image);
+            let mut state = OsForegroundTask::new(image);
             while let Ok(ctx) = show_rc.recv() {
                 state.show(&ctx);
                 let _ = on_done_tx.send(());
