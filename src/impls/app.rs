@@ -79,7 +79,7 @@ impl eframe::App for App {
                 }
 
                 if !self.foreground_tasks_started {
-                    self.model.create_foreground_task(ctx);
+                    self.model.create_foreground_task();
                     self.foreground_tasks_started = true;
                 }
                 ui.horizontal(|ui| {

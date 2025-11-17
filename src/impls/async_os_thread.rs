@@ -1,10 +1,10 @@
 use crate::impls::{
-    IMAGE_PATH,
+    DEFAULT_IMAGE,
     thread_model::{ThreadModel, ThreadModelKind},
 };
 use std::{
     env::current_dir,
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::{
         Arc,
         atomic::{AtomicBool, AtomicU64, Ordering},
@@ -78,10 +78,8 @@ impl OsForegroundTask {
 pub fn os_foreground(
     thread_nr: usize,
     on_done_tx: SyncSender<()>,
-    image_path: &str,
-    ctx: &Context,
 ) -> (JoinHandle<()>, SyncSender<Context>) {
-    let image = load_image(Path::new(image_path), ctx);
+    let image = DEFAULT_IMAGE;
     let (show_tx, show_rc) = sync_channel(0);
     let handle = std::thread::Builder::new()
         .name(format!("Worker {thread_nr}"))
@@ -137,14 +135,10 @@ impl ThreadModel for OneToOneModel {
         ThreadModelKind::OneToOne
     }
 
-    fn create_foreground_task(&mut self, ctx: &Context) {
+    fn create_foreground_task(&mut self) {
         let thread_nr = self.foreground_tasks.len();
-        self.foreground_tasks.push(os_foreground(
-            thread_nr,
-            self.on_done_tx.clone(),
-            IMAGE_PATH,
-            ctx,
-        ));
+        self.foreground_tasks
+            .push(os_foreground(thread_nr, self.on_done_tx.clone()));
     }
 
     fn create_background_task(&mut self, counter: Arc<AtomicU64>) {

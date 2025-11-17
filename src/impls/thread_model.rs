@@ -23,7 +23,7 @@ impl Display for ThreadModelKind {
 
 pub trait ThreadModel {
     fn get_kind(&self) -> ThreadModelKind;
-    fn create_foreground_task(&mut self, ctx: &Context);
+    fn create_foreground_task(&mut self);
     fn create_background_task(&mut self, counter: Arc<AtomicU64>);
     fn create_evil_task(&mut self);
     fn num_background_tasks(&self) -> usize;

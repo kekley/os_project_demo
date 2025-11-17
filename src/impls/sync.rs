@@ -1,6 +1,5 @@
 use std::{
     env::current_dir,
-    path::Path,
     sync::{
         Arc,
         atomic::{AtomicU64, Ordering},
@@ -13,7 +12,7 @@ use egui::{Button, Context, DragValue, ImageSource};
 use rand::Rng;
 
 use crate::impls::{
-    IMAGE_PATH, load_image,
+    DEFAULT_IMAGE, load_image,
     thread_model::{ThreadModel, ThreadModelKind},
 };
 
@@ -52,7 +51,7 @@ impl SyncForegroundTask {
     }
 
     pub fn show(&mut self, ctx: &egui::Context) {
-        egui::Window::new("Image viewer").show(ctx, |ui| {
+        egui::Window::new("Image Viewer").show(ctx, |ui| {
             ui.image(self.image.clone());
             if ui.add(Button::new("Load Image")).clicked() {
                 let dialogue = rfd::FileDialog::new().set_directory(current_dir().unwrap());
@@ -91,8 +90,8 @@ impl ThreadModel for ManyToOneModel {
         ThreadModelKind::ManyToOne
     }
 
-    fn create_foreground_task(&mut self, ctx: &Context) {
-        let image = load_image(Path::new(IMAGE_PATH), ctx);
+    fn create_foreground_task(&mut self) {
+        let image = DEFAULT_IMAGE;
         self.foreground_tasks.push(SyncForegroundTask::new(image));
     }
 

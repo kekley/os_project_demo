@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use egui::{Context, ImageSource};
+use egui::{Context, ImageSource, include_image};
 
 pub mod app;
 pub mod async_light_thread;
@@ -15,6 +15,6 @@ pub fn load_image(path: &Path, ctx: &Context) -> ImageSource<'static> {
     ImageSource::Uri(uri.into())
 }
 
-pub const IMAGE_PATH: &str = "assets/shocked.gif";
+pub const DEFAULT_IMAGE: ImageSource<'static> = include_image!("../../assets/default.gif");
 
 pub const PROGRESS_MAX: u64 = 12000;

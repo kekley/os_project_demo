@@ -1,5 +1,4 @@
 use std::{
-    path::Path,
     sync::{
         Arc,
         atomic::{AtomicBool, AtomicU64, Ordering},
@@ -19,7 +18,7 @@ use tokio::{
 };
 
 use crate::impls::{
-    IMAGE_PATH, load_image,
+    DEFAULT_IMAGE, load_image,
     thread_model::{ThreadModel, ThreadModelKind},
 };
 
@@ -79,12 +78,8 @@ impl ForegroundGreenThread {
     }
 }
 
-pub fn foreground_green_thread(
-    on_done_tx: Sender<()>,
-    image_path: &str,
-    ctx: &Context,
-) -> (JoinHandle<()>, Sender<Context>) {
-    let image = load_image(Path::new(image_path), ctx);
+pub fn foreground_green_thread(on_done_tx: Sender<()>) -> (JoinHandle<()>, Sender<Context>) {
+    let image = DEFAULT_IMAGE;
     let (show_tx, show_rc) = channel(1);
     let handle = tokio::spawn(inner(image, show_rc, on_done_tx));
     (handle, show_tx)
@@ -165,12 +160,9 @@ impl Default for ManyToManyModel {
 }
 
 impl ThreadModel for ManyToManyModel {
-    fn create_foreground_task(&mut self, ctx: &Context) {
-        self.foreground_tasks.push(foreground_green_thread(
-            self.on_done_tx.clone(),
-            IMAGE_PATH,
-            ctx,
-        ));
+    fn create_foreground_task(&mut self) {
+        self.foreground_tasks
+            .push(foreground_green_thread(self.on_done_tx.clone()));
     }
 
     fn create_background_task(&mut self, counter: Arc<AtomicU64>) {
