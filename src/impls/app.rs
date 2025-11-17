@@ -16,7 +16,8 @@ use crate::impls::{
 
 pub struct App {
     model: Box<dyn ThreadModel>,
-    background_task_num: u32,
+    foreground_tasks_started: bool,
+    background_task_spawn_num: u32,
     counter: Arc<AtomicU64>,
 }
 
@@ -25,16 +26,18 @@ impl App {
         Self {
             model: Box::new(ManyToOneModel::default()),
             counter: Default::default(),
-            background_task_num: 1,
+            background_task_spawn_num: 1,
+            foreground_tasks_started: false,
         }
     }
 }
 
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        ctx.set_pixels_per_point(1.3);
         let mut current_model = self.model.get_kind();
         egui::Window::new(current_model.to_string())
-            .default_pos(Pos2::new(10.0, 10.0))
+            .default_pos(Pos2::new(20.0, 20.0))
             .show(ctx, |ui| {
                 if ui
                     .radio_value(
@@ -45,6 +48,7 @@ impl eframe::App for App {
                     .changed()
                 {
                     self.model = Box::new(ManyToOneModel::default());
+                    self.foreground_tasks_started = false;
                     return;
                 };
                 if ui
@@ -56,6 +60,8 @@ impl eframe::App for App {
                     .changed()
                 {
                     self.model = Box::new(OneToOneModel::default());
+
+                    self.foreground_tasks_started = false;
                     return;
                 }
                 if ui
@@ -67,16 +73,19 @@ impl eframe::App for App {
                     .changed()
                 {
                     self.model = Box::new(ManyToManyModel::default());
+
+                    self.foreground_tasks_started = false;
                     return;
                 }
 
-                if ui.button("Spawn a foreground task").clicked() {
-                    self.model.create_foreground_task(ctx)
+                if !self.foreground_tasks_started {
+                    self.model.create_foreground_task(ctx);
+                    self.foreground_tasks_started = true;
                 }
                 ui.horizontal(|ui| {
-                    ui.add(DragValue::new(&mut self.background_task_num));
+                    ui.add(DragValue::new(&mut self.background_task_spawn_num));
                     if ui.button("Spawn n background tasks").clicked() {
-                        for _ in 0..self.background_task_num {
+                        for _ in 0..self.background_task_spawn_num {
                             self.model.create_background_task(self.counter.clone());
                         }
                     }

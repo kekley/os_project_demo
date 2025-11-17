@@ -52,38 +52,31 @@ impl SyncForegroundTask {
     }
 
     pub fn show(&mut self, ctx: &egui::Context) {
-        let pos = egui::pos2(128.0, 128.0);
-        egui::Window::new("Image viewer")
-            .default_pos(pos)
-            .show(ctx, |ui| {
-                ui.image(self.image.clone());
-                if ui.add(Button::new("Load Image")).clicked() {
-                    let dialogue = rfd::FileDialog::new().set_directory(current_dir().unwrap());
-                    let result = dialogue.pick_file();
-                    if let Some(result) = result {
-                        self.image = load_image(&result, ctx);
-                    }
+        egui::Window::new("Image viewer").show(ctx, |ui| {
+            ui.image(self.image.clone());
+            if ui.add(Button::new("Load Image")).clicked() {
+                let dialogue = rfd::FileDialog::new().set_directory(current_dir().unwrap());
+                let result = dialogue.pick_file();
+                if let Some(result) = result {
+                    self.image = load_image(&result, ctx);
                 }
+            }
+        });
+
+        egui::Window::new("Text Editor").show(ctx, |ui| {
+            ui.text_edit_multiline(&mut self.text_buffer);
+        });
+        egui::Window::new("Form").show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Name: ");
+                ui.text_edit_singleline(&mut self.form_name);
             });
 
-        egui::Window::new("Text Editor")
-            .default_pos(pos * 2.0)
-            .show(ctx, |ui| {
-                ui.text_edit_multiline(&mut self.text_buffer);
+            ui.horizontal(|ui| {
+                ui.label("Age: ");
+                ui.add(DragValue::new(&mut self.form_number));
             });
-        egui::Window::new("Form")
-            .default_pos(pos * 3.0)
-            .show(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    ui.label("Name: ");
-                    ui.text_edit_singleline(&mut self.form_name);
-                });
-
-                ui.horizontal(|ui| {
-                    ui.label("Age: ");
-                    ui.add(DragValue::new(&mut self.form_number));
-                });
-            });
+        });
     }
 }
 

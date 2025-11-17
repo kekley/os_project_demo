@@ -20,6 +20,7 @@ fn main() -> eframe::Result {
     });
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default().with_inner_size([1024.0, 768.0]),
+
         ..Default::default()
     };
     let app = Box::new(App::new());

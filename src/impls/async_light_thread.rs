@@ -43,7 +43,6 @@ impl ForegroundGreenThread {
     }
 
     async fn show(&mut self, ctx: &egui::Context) {
-        let pos = egui::pos2(128.0, 128.0);
         if let Some(handle) = self.loader_thread.take_if(|handle| handle.is_finished())
             && let Ok(result) = handle.await
             && let Some(path) = result
@@ -51,38 +50,32 @@ impl ForegroundGreenThread {
             self.image = load_image(path.path(), ctx);
         }
 
-        egui::Window::new("Image Viewer")
-            .default_pos(pos)
-            .show(ctx, |ui| {
-                ui.image(self.image.clone());
-                if ui
-                    .add_enabled(self.loader_thread.is_none(), Button::new("Load Image"))
-                    .clicked()
-                {
-                    let dialogue = AsyncFileDialog::new();
-                    let handle = spawn(dialogue.pick_file());
-                    self.loader_thread = Some(handle);
-                }
+        egui::Window::new("Image Viewer").show(ctx, |ui| {
+            ui.image(self.image.clone());
+            if ui
+                .add_enabled(self.loader_thread.is_none(), Button::new("Load Image"))
+                .clicked()
+            {
+                let dialogue = AsyncFileDialog::new();
+                let handle = spawn(dialogue.pick_file());
+                self.loader_thread = Some(handle);
+            }
+        });
+
+        egui::Window::new("Text Editor").show(ctx, |ui| {
+            ui.text_edit_multiline(&mut self.text_buffer);
+        });
+        egui::Window::new("Form").show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Name: ");
+                ui.text_edit_singleline(&mut self.form_name);
             });
 
-        egui::Window::new("Text Editor")
-            .default_pos(pos * 2.0)
-            .show(ctx, |ui| {
-                ui.text_edit_multiline(&mut self.text_buffer);
+            ui.horizontal(|ui| {
+                ui.label("Age: ");
+                ui.add(DragValue::new(&mut self.form_number));
             });
-        egui::Window::new("Form")
-            .default_pos(pos * 3.0)
-            .show(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    ui.label("Name: ");
-                    ui.text_edit_singleline(&mut self.form_name);
-                });
-
-                ui.horizontal(|ui| {
-                    ui.label("Age: ");
-                    ui.add(DragValue::new(&mut self.form_number));
-                });
-            });
+        });
     }
 }
 
