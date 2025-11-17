@@ -12,7 +12,9 @@ use egui::{Button, Context, DragValue, ImageSource};
 use rand::Rng;
 
 use crate::impls::{
-    DEFAULT_IMAGE, load_image,
+    DEFAULT_IMAGE,
+    app::{DEFAULT_AGE, DEFAULT_NAME, DEFAULT_TEXT},
+    load_image,
     thread_model::{ThreadModel, ThreadModelKind},
 };
 
@@ -44,9 +46,9 @@ impl SyncForegroundTask {
     pub fn new(image: ImageSource<'static>) -> Self {
         Self {
             image,
-            text_buffer: Default::default(),
-            form_name: Default::default(),
-            form_number: Default::default(),
+            text_buffer: DEFAULT_TEXT.to_string(),
+            form_name: DEFAULT_NAME.to_string(),
+            form_number: DEFAULT_AGE,
         }
     }
 

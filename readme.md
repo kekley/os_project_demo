@@ -1,4 +1,5 @@
 # The Demo
+![](assets/screenshot.png)
 There are three different models for multi-threading in an operating system: Many to One, One to One, and Many to Many.
 This program is a demonstration of how each threading model interacts with a set of dummy interactive apps alongside a variable number of
 background processes that simulate a program blocking the current thread of execution with an IO operation for a duration between 0 and 1 second. The background tasks simulate 

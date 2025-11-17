@@ -1,5 +1,6 @@
 use crate::impls::{
     DEFAULT_IMAGE,
+    app::{DEFAULT_AGE, DEFAULT_NAME, DEFAULT_TEXT},
     thread_model::{ThreadModel, ThreadModelKind},
 };
 use std::{
@@ -32,9 +33,9 @@ impl OsForegroundTask {
         Self {
             image,
             loader_thread: None,
-            text_buffer: Default::default(),
-            form_name: Default::default(),
-            form_number: Default::default(),
+            text_buffer: DEFAULT_TEXT.to_string(),
+            form_name: DEFAULT_NAME.to_string(),
+            form_number: DEFAULT_AGE,
         }
     }
 

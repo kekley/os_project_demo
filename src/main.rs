@@ -19,7 +19,12 @@ fn main() -> eframe::Result {
         })
     });
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([1024.0, 768.0]),
+        viewport: egui::ViewportBuilder::default()
+            .with_inner_size([1024.0, 768.0])
+            .with_transparent(false)
+            .with_decorations(true)
+            .with_title("Multithreading model demo")
+            .with_maximized(true),
 
         ..Default::default()
     };
