@@ -111,8 +111,8 @@ impl eframe::App for App {
 
                     ui.separator();
                     if ui.button("Run overhead benchmark").clicked() {
-                        let n = self.background_task_spawn_num as usize;
-                        let iterations = 200usize;
+                        let n = 1000;
+                        let iterations = 5000usize;
                         let bench_result = self.bench_result.clone();
                         let bench_running = self.bench_running.clone();
                         bench_running.store(true, Ordering::Relaxed);
