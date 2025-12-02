@@ -5,6 +5,7 @@ use egui::{Context, ImageSource, include_image};
 pub mod app;
 pub mod async_light_thread;
 pub mod async_os_thread;
+pub mod bench;
 pub mod sync;
 pub mod thread_model;
 

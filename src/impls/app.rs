@@ -23,6 +23,8 @@ pub struct App {
     foreground_tasks_started: bool,
     background_task_spawn_num: u32,
     counter: Arc<AtomicU64>,
+    bench_result: std::sync::Arc<std::sync::Mutex<Option<String>>>,
+    bench_running: std::sync::Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl App {
@@ -32,6 +34,8 @@ impl App {
             counter: Default::default(),
             background_task_spawn_num: 1,
             foreground_tasks_started: false,
+            bench_result: std::sync::Arc::new(std::sync::Mutex::new(None)),
+            bench_running: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
         }
     }
 }
@@ -104,6 +108,29 @@ impl eframe::App for App {
                         "Background tasks: {num}",
                         num = self.model.num_background_tasks()
                     ));
+
+                    ui.separator();
+                    if ui.button("Run overhead benchmark").clicked() {
+                        let n = self.background_task_spawn_num as usize;
+                        let iterations = 200usize;
+                        let bench_result = self.bench_result.clone();
+                        let bench_running = self.bench_running.clone();
+                        bench_running.store(true, Ordering::Relaxed);
+                        std::thread::spawn(move || {
+                            let out = crate::impls::bench::run_benchmarks(n, iterations);
+                            *bench_result.lock().unwrap() = Some(out);
+                            bench_running.store(false, Ordering::Relaxed);
+                        });
+                    }
+
+                    if self.bench_running.load(Ordering::Relaxed) {
+                        ui.label("Benchmark running...");
+                    } else if let Some(res) = self.bench_result.lock().unwrap().as_ref() {
+                        ui.label("Benchmark result:");
+                        ui.collapsing("Details", |ui| {
+                            ui.label(res.clone());
+                        });
+                    }
 
                     let mem_usage = memory_stats().unwrap().physical_mem / 1000000;
                     ui.label(format!("Memory usage: {mem_usage}MB"));
